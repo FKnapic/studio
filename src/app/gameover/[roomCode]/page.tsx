@@ -8,25 +8,27 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import PlayerList from '@/components/PlayerList';
 import type { Player, Room } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { Trophy, Home, RefreshCw, Users } from 'lucide-react';
-import Confetti from 'react-confetti'; // Added for celebration
+import { Trophy, Home, RefreshCw, Users, Loader2 } from 'lucide-react';
+import Confetti from 'react-confetti';
 
-// Mock function to get final room details, usually from a persisted state or API
-const fetchFinalRoomDetails = async (roomCode: string): Promise<Room | null> => {
-  console.log(`Fetching final details for room ${roomCode}`);
+// This function would be replaced by data received from server via WebSockets or an API call.
+const fetchFinalRoomDetailsMock = async (roomCode: string, nickname: string): Promise<Room | null> => {
+  console.log(`[GameOverPage/fetchFinalRoomDetailsMock] Simulating fetch for room ${roomCode}`);
   await new Promise(resolve => setTimeout(resolve, 300));
-  let mockRooms = {};
-  try {
-    const storedRooms = localStorage.getItem('scribbleRooms');
-    if (storedRooms) {
-      mockRooms = JSON.parse(storedRooms);
-    }
-  } catch (e) {
-    console.error("Failed to parse scribbleRooms from localStorage in fetchFinalRoomDetails:", e);
-    // mockRooms remains {}
-  }
-  const rooms = mockRooms as Record<string, Room>;
-  return rooms[roomCode] || null;
+  // In a real app, this data comes from the server.
+  // For now, return a mock structure.
+  const mockWinner: Player = {id: 'winner-id', nickname: nickname, score: 100, isHost: false};
+  const mockOtherPlayer: Player = {id: 'other-player-id', nickname: "BotPlayer", score: 50, isHost: false};
+  
+  return {
+    roomCode,
+    players: [mockWinner, mockOtherPlayer].sort((a,b) => b.score - a.score),
+    hostId: 'some-host-id', // Server provides
+    isGameActive: false, // Game is over
+    messages: [],
+    maxRounds: 3,
+    round: 3 * 2, // Example: 3 rounds, 2 players
+  };
 };
 
 export default function GameOverPage() {
@@ -47,75 +49,73 @@ export default function GameOverPage() {
 
   const loadFinalData = useCallback(async () => {
     setIsLoading(true);
-    const roomData = await fetchFinalRoomDetails(roomCode);
+    // In a WebSocket setup:
+    // The server might have already pushed to this page with state, or client confirms with server.
+    // socket.emit('getFinalScores', { roomCode });
+    // socket.on('finalScores', (roomData: Room) => { ... });
+
+    const roomData = await fetchFinalRoomDetailsMock(roomCode, nickname); // Using mock
     if (roomData) {
       setRoom(roomData);
       if (roomData.players && roomData.players.length > 0) {
         const sortedPlayers = [...roomData.players].sort((a, b) => b.score - a.score);
         setWinner(sortedPlayers[0]);
-        setShowConfetti(true); 
-        setTimeout(() => setShowConfetti(false), 8000); // Confetti for 8 seconds
+        if (sortedPlayers[0].nickname === nickname) { // Only show confetti if current player is winner
+            setShowConfetti(true);
+            setTimeout(() => setShowConfetti(false), 8000);
+        }
       }
     } else {
       toast({ title: 'Error', description: 'Could not load game results.', variant: 'destructive' });
-      router.push('/');
+      // router.push('/'); // Potentially redirect if no data
     }
     setIsLoading(false);
-  }, [roomCode, router, toast]);
+  }, [roomCode, nickname, router, toast]);
 
   useEffect(() => {
     loadFinalData();
     const handleResize = () => {
         setWindowSize({ width: window.innerWidth, height: window.innerHeight });
     };
-    window.addEventListener('resize', handleResize);
-    handleResize(); // Initial size
-    return () => window.removeEventListener('resize', handleResize);
+    if (typeof window !== 'undefined') {
+        window.addEventListener('resize', handleResize);
+        handleResize(); // Initial size
+        return () => window.removeEventListener('resize', handleResize);
+    }
   }, [loadFinalData]);
 
 
   const handlePlayAgain = () => {
-    // Reset game state for the room (mock)
+    // In a WebSocket setup:
+    // socket.emit('requestPlayAgain', { roomCode, nickname });
+    // Server would then manage resetting the room state and potentially navigating players back to lobby or new game.
+    toast({ title: "Play Again Clicked", description: "Returning to lobby (mock)."});
     if (room) {
-      const resetRoom: Room = {
-        ...room,
-        isGameActive: false,
-        round: 0,
-        currentWord: undefined,
-        currentDrawerId: undefined,
-        timeLeft: undefined,
-        messages: [],
-        players: room.players.map(p => ({ ...p, score: 0 })), // Reset scores
-      };
-      let mockRooms = {};
-      try {
-        const storedRooms = localStorage.getItem('scribbleRooms');
-        if (storedRooms) mockRooms = JSON.parse(storedRooms);
-      } catch (e) {
-        console.error("Failed to parse scribbleRooms from localStorage in handlePlayAgain:", e);
-      }
-      const rooms = mockRooms as Record<string, Room>;
-      rooms[roomCode] = resetRoom;
-      try {
-        localStorage.setItem('scribbleRooms', JSON.stringify(rooms));
-      } catch (e) {
-        console.error("Failed to set scribbleRooms in localStorage in handlePlayAgain:", e);
-      }
-      router.push(`/lobby/${roomCode}?nickname=${encodeURIComponent(nickname)}`);
+      // Navigate to lobby, server would handle actual room reset.
+      router.push(`/lobby/${roomCode}?nickname=${encodeURIComponent(nickname)}&action=create`); // Rejoin/recreate lobby
     }
   };
 
   if (isLoading) {
-    return <div className="flex justify-center items-center h-screen"><Trophy className="w-12 h-12 animate-bounce text-primary" /> <span className="ml-4 text-2xl">Loading Results...</span></div>;
+    return <div className="flex justify-center items-center h-screen"><Loader2 className="w-12 h-12 animate-bounce text-primary" /> <span className="ml-4 text-2xl">Loading Results...</span></div>;
   }
 
-  if (!room || !winner) {
-    return <div className="text-center text-xl text-destructive py-10">Could not display game results.</div>;
+  if (!room || !winner) { // If no room data or winner after loading, show error
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-8 text-center">
+        <AlertTriangle className="w-16 h-16 text-destructive mx-auto mb-4" />
+        <CardTitle className="text-2xl font-semibold">Error Displaying Results</CardTitle>
+        <CardDescription>Could not display game results. The game data might be missing.</CardDescription>
+        <Button onClick={() => router.push('/')} className="mt-4">
+            <Home className="mr-2 h-4 w-4" /> Back to Home
+        </Button>
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-150px)] py-8">
-      {showConfetti && <Confetti width={windowSize.width} height={windowSize.height} recycle={false} numberOfPieces={300} />}
+      {showConfetti && winner?.nickname === nickname && <Confetti width={windowSize.width} height={windowSize.height} recycle={false} numberOfPieces={300} />}
       <Card className="w-full max-w-lg text-center shadow-xl">
         <CardHeader>
           <Trophy className="w-24 h-24 mx-auto text-yellow-400 mb-4" />
@@ -132,7 +132,7 @@ export default function GameOverPage() {
             <h3 className="text-2xl font-semibold mb-3 flex items-center justify-center gap-2">
                 <Users className="w-6 h-6"/> Final Scores
             </h3>
-            <PlayerList players={room.players} />
+            <PlayerList players={room.players} hostId={room.hostId}/> {/* Pass hostId if available and relevant */}
           </div>
         </CardContent>
         <CardFooter className="flex flex-col sm:flex-row gap-4 justify-center pt-6">

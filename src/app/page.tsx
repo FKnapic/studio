@@ -9,7 +9,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { PenTool, Users, LogIn } from 'lucide-react';
-import type { Room } from '@/types'; // Import Room type
+// Room type is no longer directly managed or checked here from localStorage
+// import type { Room } from '@/types';
 
 export default function HomePage() {
   const [nickname, setNickname] = useState('');
@@ -18,6 +19,7 @@ export default function HomePage() {
   const { toast } = useToast();
 
   useEffect(() => {
+    // Nickname can still be stored locally for convenience, not for game state.
     const storedNickname = localStorage.getItem('scribbleNickname');
     if (storedNickname) {
       setNickname(storedNickname);
@@ -37,6 +39,15 @@ export default function HomePage() {
     }
     const newRoomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
     console.log(`[HomePage] Creating room with code: ${newRoomCode} for nickname: ${nickname.trim()}`);
+    
+    // In a WebSocket setup:
+    // 1. Emit a "createRoom" event to the server with nickname and newRoomCode.
+    // socket.emit('createRoom', { nickname: nickname.trim(), roomCode: newRoomCode });
+    // 2. Server creates the room, adds the player, and responds (e.g., 'roomCreated' event).
+    // 3. On 'roomCreated' success, navigate.
+    
+    // For now, we navigate directly, assuming the server handles creation.
+    // The 'action=create' param can hint to the lobby that the user initiated creation.
     router.push(`/lobby/${newRoomCode}?nickname=${encodeURIComponent(nickname.trim())}&action=create`);
   };
 
@@ -53,29 +64,14 @@ export default function HomePage() {
     const targetRoomCode = roomCode.trim().toUpperCase();
     console.log(`[HomePage] Attempting to join room. Nickname: "${nickname.trim()}", Room Code Input: "${roomCode}", Target Code: "${targetRoomCode}"`);
 
-    let currentRooms: Record<string, Room> = {};
-    let rawStoredRooms = null;
-    try {
-        rawStoredRooms = localStorage.getItem('scribbleRooms');
-        console.log("[HomePage] Raw 'scribbleRooms' from localStorage:", rawStoredRooms);
-        if (rawStoredRooms) {
-            currentRooms = JSON.parse(rawStoredRooms);
-            console.log("[HomePage] Parsed 'scribbleRooms':", JSON.parse(JSON.stringify(currentRooms))); // Deep copy for logging
-        } else {
-            console.log("[HomePage] 'scribbleRooms' not found in localStorage or is null.");
-        }
-    } catch (e) {
-        console.error("[HomePage] Failed to parse 'scribbleRooms' from localStorage:", e);
-        toast({ title: 'Error', description: 'Could not read room data. Please try again.', variant: 'destructive' });
-        return;
-    }
+    // In a WebSocket setup:
+    // 1. Emit a "joinRoom" event to the server with nickname and targetRoomCode.
+    // socket.emit('joinRoom', { nickname: nickname.trim(), roomCode: targetRoomCode });
+    // 2. Server checks if room exists, if player can join, and responds (e.g., 'joinSuccess' or 'joinError').
+    // 3. On 'joinSuccess', navigate. On 'joinError', show toast.
 
-    if (!currentRooms[targetRoomCode]) {
-        console.warn(`[HomePage] Room "${targetRoomCode}" not found in parsed rooms. Available room codes:`, Object.keys(currentRooms));
-        toast({ title: 'Room Not Found', description: `Room "${targetRoomCode}" does not exist.`, variant: 'destructive' });
-        return;
-    }
-    console.log(`[HomePage] Room "${targetRoomCode}" found. Navigating to lobby.`);
+    // For now, we navigate directly. The lobby page would then try to fetch room details via sockets.
+    // If the server can't find the room or doesn't allow join, it would handle it (e.g., redirect back or show error).
     router.push(`/lobby/${targetRoomCode}?nickname=${encodeURIComponent(nickname.trim())}`);
   };
 
