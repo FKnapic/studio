@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useRef, useEffect, useState } from 'react';
@@ -30,6 +31,7 @@ export default function DrawingCanvas({ width = 800, height = 600, isDrawer, onD
   const [lineWidth, setLineWidth] = useState(5);
   const [history, setHistory] = useState<ImageData[]>([]);
   const [historyStep, setHistoryStep] = useState(-1);
+  const prevPosRef = useRef<{ x: number; y: number } | null>(null);
 
 
   const getContext = () => canvasRef.current?.getContext('2d');
@@ -133,43 +135,35 @@ export default function DrawingCanvas({ width = 800, height = 600, isDrawer, onD
     if (!isDrawer) return;
     const pos = getMousePosition(event);
     if (!pos) return;
+
     setIsDrawing(true);
-    const context = getContext();
-    if (context) {
-      context.beginPath();
-      context.moveTo(pos.x, pos.y);
-    }
+    prevPosRef.current = pos; // Store the starting position
   };
 
   const draw = (event: React.MouseEvent | React.TouchEvent) => {
     if (!isDrawing || !isDrawer) return;
+
     const context = getContext();
-    const pos = getMousePosition(event);
-    if (!context || !pos) return;
+    const currentPos = getMousePosition(event);
+
+    if (!context || !currentPos) return;
+
+    if (!prevPosRef.current) {
+      // This case should ideally not be hit if startDrawing was called,
+      // but as a fallback, initialize prevPosRef.current.
+      prevPosRef.current = currentPos;
+      return;
+    }
     
-    const prevPos = {x: context.canvas.width, y: context.canvas.height}; // Need to store previous pos for emit
-    // For emit, we need the last point. This is simplified.
-    // A proper implementation would store the last point in a ref.
-    // Here, we'll assume it's from where the line started (incorrect for continuous drawing emit)
-    // This is a simplified version for demonstration.
-    // Correct way: store last mouse position on move.
-    // For now, this will draw locally correctly. Emit data will be slightly off.
-    const lastPoint = {x: context.canvas.width/2, y: context.canvas.height/2}; // Placeholder last point for emit
-    
-    drawLine(context, lastPoint.x, lastPoint.y, pos.x, pos.y, currentColor, lineWidth, true);
-    // Correct way to handle previous point for drawLine:
-    // You need to store the previous mouse position in a ref during the mousemove/touchmove event.
-    // Example: currentPosRef.current = pos; drawLine(context, prevPosRef.current.x, prevPosRef.current.y, pos.x, pos.y, ...); prevPosRef.current = pos;
+    drawLine(context, prevPosRef.current.x, prevPosRef.current.y, currentPos.x, currentPos.y, currentColor, lineWidth, true);
+    prevPosRef.current = currentPos; // Update for the next segment
   };
 
   const stopDrawing = () => {
     if (!isDrawer) return;
     setIsDrawing(false);
-    const context = getContext();
-    if (context) {
-      context.closePath();
-      saveHistory();
-    }
+    // prevPosRef.current = null; // Optional: reset, but isDrawing guard handles it
+    saveHistory(); // Save the completed stroke
   };
 
   const clearCanvas = () => {
@@ -177,7 +171,7 @@ export default function DrawingCanvas({ width = 800, height = 600, isDrawer, onD
     if (context && canvasRef.current) {
       context.fillStyle = 'white';
       context.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      // TODO: emit clear event if needed
+      // TODO: emit clear event if needed via onDraw or a dedicated callback
       saveHistory();
     }
   };
@@ -211,7 +205,7 @@ export default function DrawingCanvas({ width = 800, height = 600, isDrawer, onD
           onMouseDown={startDrawing}
           onMouseMove={draw}
           onMouseUp={stopDrawing}
-          onMouseLeave={stopDrawing}
+          onMouseLeave={stopDrawing} // Stop drawing if mouse leaves canvas
           onTouchStart={startDrawing}
           onTouchMove={draw}
           onTouchEnd={stopDrawing}
@@ -268,3 +262,4 @@ export default function DrawingCanvas({ width = 800, height = 600, isDrawer, onD
     </Card>
   );
 }
+
