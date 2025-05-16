@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -14,8 +15,18 @@ import Confetti from 'react-confetti'; // Added for celebration
 const fetchFinalRoomDetails = async (roomCode: string): Promise<Room | null> => {
   console.log(`Fetching final details for room ${roomCode}`);
   await new Promise(resolve => setTimeout(resolve, 300));
-  let mockRooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
-  return mockRooms[roomCode] || null;
+  let mockRooms = {};
+  try {
+    const storedRooms = localStorage.getItem('scribbleRooms');
+    if (storedRooms) {
+      mockRooms = JSON.parse(storedRooms);
+    }
+  } catch (e) {
+    console.error("Failed to parse scribbleRooms from localStorage in fetchFinalRoomDetails:", e);
+    // mockRooms remains {}
+  }
+  const rooms = mockRooms as Record<string, Room>;
+  return rooms[roomCode] || null;
 };
 
 export default function GameOverPage() {
@@ -66,7 +77,7 @@ export default function GameOverPage() {
   const handlePlayAgain = () => {
     // Reset game state for the room (mock)
     if (room) {
-      const resetRoom = {
+      const resetRoom: Room = {
         ...room,
         isGameActive: false,
         round: 0,
@@ -76,9 +87,20 @@ export default function GameOverPage() {
         messages: [],
         players: room.players.map(p => ({ ...p, score: 0 })), // Reset scores
       };
-      let mockRooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
-      mockRooms[roomCode] = resetRoom;
-      localStorage.setItem('scribbleRooms', JSON.stringify(mockRooms));
+      let mockRooms = {};
+      try {
+        const storedRooms = localStorage.getItem('scribbleRooms');
+        if (storedRooms) mockRooms = JSON.parse(storedRooms);
+      } catch (e) {
+        console.error("Failed to parse scribbleRooms from localStorage in handlePlayAgain:", e);
+      }
+      const rooms = mockRooms as Record<string, Room>;
+      rooms[roomCode] = resetRoom;
+      try {
+        localStorage.setItem('scribbleRooms', JSON.stringify(rooms));
+      } catch (e) {
+        console.error("Failed to set scribbleRooms in localStorage in handlePlayAgain:", e);
+      }
       router.push(`/lobby/${roomCode}?nickname=${encodeURIComponent(nickname)}`);
     }
   };

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -27,10 +28,21 @@ import {
 const fetchGameRoomDetails = async (roomCode: string, nickname: string): Promise<Room | null> => {
   console.log(`Fetching game room ${roomCode} for ${nickname}`);
   await new Promise(resolve => setTimeout(resolve, 300));
-  let mockRooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
+  let mockRooms = {};
+  try {
+    const storedRooms = localStorage.getItem('scribbleRooms');
+    if (storedRooms) {
+      mockRooms = JSON.parse(storedRooms);
+    }
+  } catch (e) {
+    console.error("Failed to parse scribbleRooms from localStorage in fetchGameRoomDetails:", e);
+    // mockRooms remains {}
+  }
   
-  if (mockRooms[roomCode]) {
-    const room = mockRooms[roomCode];
+  const rooms = mockRooms as Record<string, Room>;
+
+  if (rooms[roomCode]) {
+    const room = rooms[roomCode];
     // Ensure player is in room (might have joined through lobby)
     if (!room.players.find((p: Player) => p.nickname === nickname)) {
       room.players.push({ id: Math.random().toString(36).substring(7), nickname, score: 0 });
@@ -43,10 +55,14 @@ const fetchGameRoomDetails = async (roomCode: string, nickname: string): Promise
       room.currentWord = 'HOUSE'; // Mock word
       room.timeLeft = 60;
       if (!room.messages) room.messages = [];
-       room.messages.push({ id: Date.now().toString(), nickname: 'System', text: `Round 1! ${room.players.find(p => p.id === room.currentDrawerId)?.nickname || 'Drawer'} is drawing.`, timestamp: Date.now(), isSystemMessage: true });
+       room.messages.push({ id: Date.now().toString(), nickname: 'System', text: `Round 1! ${room.players.find((p: Player) => p.id === room.currentDrawerId)?.nickname || 'Drawer'} is drawing.`, timestamp: Date.now(), isSystemMessage: true });
     }
-    mockRooms[roomCode] = room;
-    localStorage.setItem('scribbleRooms', JSON.stringify(mockRooms));
+    rooms[roomCode] = room;
+    try {
+      localStorage.setItem('scribbleRooms', JSON.stringify(rooms));
+    } catch (e) {
+      console.error("Failed to set scribbleRooms in localStorage in fetchGameRoomDetails:", e);
+    }
     return room;
   }
   return null;
@@ -106,11 +122,18 @@ export default function GamePage() {
       if (currentRound >= maxRounds * room.players.length) { // Each player draws maxRounds times
         // Game Over
         toast({ title: "Game Over!", description: "Check the final scores!"});
-        // Update room state to reflect game over
         const updatedRoom = { ...room, isGameActive: false, messages: newMessages };
-        let mockRooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
-        mockRooms[roomCode] = updatedRoom;
-        localStorage.setItem('scribbleRooms', JSON.stringify(mockRooms));
+        let mockRooms = {};
+        try {
+          const storedRooms = localStorage.getItem('scribbleRooms');
+          if (storedRooms) mockRooms = JSON.parse(storedRooms);
+        } catch (e) { console.error("Failed to parse scribbleRooms from localStorage in timer (game over):", e); }
+        
+        const rooms = mockRooms as Record<string, Room>;
+        rooms[roomCode] = updatedRoom;
+        try {
+          localStorage.setItem('scribbleRooms', JSON.stringify(rooms));
+        } catch (e) { console.error("Failed to set scribbleRooms in localStorage in timer (game over):", e); }
         setRoom(updatedRoom);
         router.push(`/gameover/${roomCode}?nickname=${encodeURIComponent(currentNickname)}`);
         return;
@@ -131,9 +154,17 @@ export default function GamePage() {
           timeLeft: 60,
           messages: newMessages,
         };
-        let mockRooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
-        mockRooms[roomCode] = updatedRoom;
-        localStorage.setItem('scribbleRooms', JSON.stringify(mockRooms));
+        let mockRooms = {};
+        try {
+          const storedRooms = localStorage.getItem('scribbleRooms');
+          if (storedRooms) mockRooms = JSON.parse(storedRooms);
+        } catch (e) { console.error("Failed to parse scribbleRooms from localStorage in timer (next round):", e); }
+
+        const rooms = mockRooms as Record<string, Room>;
+        rooms[roomCode] = updatedRoom;
+        try {
+          localStorage.setItem('scribbleRooms', JSON.stringify(rooms));
+        } catch (e) { console.error("Failed to set scribbleRooms in localStorage in timer (next round):", e); }
         setRoom(updatedRoom);
         toast({ title: "Next Round!", description: `${nextDrawer.nickname} is now drawing.`});
       }
@@ -179,9 +210,17 @@ export default function GamePage() {
 
     const updatedRoom = { ...room, messages: [...room.messages, newMessage], players: updatedPlayers };
     
-    let mockRooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
-    mockRooms[roomCode] = updatedRoom;
-    localStorage.setItem('scribbleRooms', JSON.stringify(mockRooms));
+    let mockRooms = {};
+    try {
+      const storedRooms = localStorage.getItem('scribbleRooms');
+      if (storedRooms) mockRooms = JSON.parse(storedRooms);
+    } catch (e) { console.error("Failed to parse scribbleRooms from localStorage in handleSendMessage:", e); }
+    
+    const rooms = mockRooms as Record<string, Room>;
+    rooms[roomCode] = updatedRoom;
+    try {
+      localStorage.setItem('scribbleRooms', JSON.stringify(rooms));
+    } catch (e) { console.error("Failed to set scribbleRooms in localStorage in handleSendMessage:", e); }
     setRoom(updatedRoom);
 
     // If correct guess, might trigger round end early (not implemented in this mock)
@@ -274,3 +313,4 @@ export default function GamePage() {
     </div>
   );
 }
+

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -8,6 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { PenTool, Users, LogIn } from 'lucide-react';
+import type { Room } from '@/types'; // Import Room type
 
 export default function HomePage() {
   const [nickname, setNickname] = useState('');
@@ -16,7 +18,6 @@ export default function HomePage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Persist nickname (optional)
     const storedNickname = localStorage.getItem('scribbleNickname');
     if (storedNickname) {
       setNickname(storedNickname);
@@ -35,7 +36,6 @@ export default function HomePage() {
       return;
     }
     const newRoomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
-    // Add action=create to differentiate join from create for lobby page
     router.push(`/lobby/${newRoomCode}?nickname=${encodeURIComponent(nickname.trim())}&action=create`);
   };
 
@@ -48,9 +48,20 @@ export default function HomePage() {
       toast({ title: 'Room code required', description: 'Please enter a room code.', variant: 'destructive' });
       return;
     }
-    // Check if room exists before trying to join
-    const rooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
-    if (!rooms[roomCode.trim().toUpperCase()]) {
+    
+    let currentRooms: Record<string, Room> = {};
+    try {
+        const storedRooms = localStorage.getItem('scribbleRooms');
+        if (storedRooms) {
+            currentRooms = JSON.parse(storedRooms);
+        }
+    } catch (e) {
+        console.error("Failed to parse scribbleRooms from localStorage in handleJoinRoom:", e);
+        toast({ title: 'Error', description: 'Could not read room data. Please try again.', variant: 'destructive' });
+        return;
+    }
+
+    if (!currentRooms[roomCode.trim().toUpperCase()]) {
         toast({ title: 'Room Not Found', description: `Room "${roomCode.trim().toUpperCase()}" does not exist.`, variant: 'destructive' });
         return;
     }

@@ -24,22 +24,35 @@ import { Input } from '@/components/ui/input';
 // Mock a function to get room details, in a real app this would be an API/socket call
 const fetchRoomDetails = async (roomCode: string, nickname: string, isCreating: boolean): Promise<Room | null> => {
   console.log(`Fetching room ${roomCode} for ${nickname}. Is creating: ${isCreating}`);
-  // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 500));
 
-  let mockRooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
+  let mockRoomsStorage = {};
+  try {
+    const storedRooms = localStorage.getItem('scribbleRooms');
+    if (storedRooms) {
+      mockRoomsStorage = JSON.parse(storedRooms);
+    }
+  } catch (e) {
+    console.error("Failed to parse scribbleRooms from localStorage in fetchRoomDetails:", e);
+    // mockRoomsStorage remains {}
+  }
+  const currentRooms = mockRoomsStorage as Record<string, Room>;
   
-  if (mockRooms[roomCode]) { // Room exists
-    const room = mockRooms[roomCode];
+  if (currentRooms[roomCode]) { // Room exists
+    const room = currentRooms[roomCode];
     const playerExists = room.players.find((p: Player) => p.nickname === nickname);
     if (!playerExists) {
       room.players.push({ id: Math.random().toString(36).substring(7), nickname, score: 0 });
     }
-     mockRooms[roomCode] = room;
-     localStorage.setItem('scribbleRooms', JSON.stringify(mockRooms));
+     currentRooms[roomCode] = room;
+     try {
+       localStorage.setItem('scribbleRooms', JSON.stringify(currentRooms));
+     } catch (e) {
+       console.error("Failed to set scribbleRooms in localStorage in fetchRoomDetails (existing room):", e);
+     }
      return room;
-  } else if (isCreating) { // Room does not exist, but we are in "create" mode (i.e., host is joining for the first time)
-     const newRoom = {
+  } else if (isCreating) { // Room does not exist, but we are in "create" mode
+     const newRoom: Room = {
       roomCode,
       players: [{ id: Math.random().toString(36).substring(7), nickname, score: 0, isHost: true }],
       hostId: nickname, 
@@ -47,11 +60,14 @@ const fetchRoomDetails = async (roomCode: string, nickname: string, isCreating: 
       messages: [],
       maxRounds: 3,
     };
-    mockRooms[roomCode] = newRoom;
-    localStorage.setItem('scribbleRooms', JSON.stringify(mockRooms));
+    currentRooms[roomCode] = newRoom;
+    try {
+      localStorage.setItem('scribbleRooms', JSON.stringify(currentRooms));
+    } catch (e) {
+      console.error("Failed to set scribbleRooms in localStorage in fetchRoomDetails (creating room):", e);
+    }
     return newRoom;
   }
-  // Room does not exist and we are not in "create" mode (i.e., trying to join a non-existent room)
   return null; 
 };
 
@@ -64,16 +80,7 @@ export default function LobbyPage() {
 
   const roomCode = params.roomCode as string;
   const nickname = searchParams.get('nickname') || 'Player';
-  // Determine if this navigation to lobby is part of a "create room" flow.
-  // A simple heuristic: if the player joining is the first player or matches a potential host flag.
-  // For robust solution, this might be passed as a query param e.g. ?action=create
-  const isHostJoiningInitially = () => {
-    const rooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
-    // If room doesn't exist yet, this is effectively a create/initial join by host.
-    // Or, if it exists but player list is empty (less likely with current logic but good check)
-    return !rooms[roomCode] || rooms[roomCode]?.players.length === 0;
-  };
-
+  const isCreationAttempt = searchParams.get('action') === 'create';
 
   const [room, setRoom] = useState<Room | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,18 +97,6 @@ export default function LobbyPage() {
         return;
     }
     try {
-      // When loading the lobby, we differentiate if it's an attempt to create (first host join) or join an existing one.
-      // For this mock, we assume if the nickname is trying to access a room for the first time, they are the host creating it.
-      // A more robust way would be to pass a query parameter from the create room button.
-      // Let's refine `isHostJoiningInitially` or pass a query param.
-      // For now, we'll assume if `fetchRoomDetails` is called for a non-existent room,
-      // it's a creation event if the hostId matches nickname, otherwise it's a join attempt.
-      // Simplified: the 'isCreating' flag in fetchRoomDetails will handle this.
-      // If localStorage has no room `roomCode` yet, it's effectively a creation by the first player.
-      const rooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
-      const isCreationAttempt = !rooms[roomCode] && searchParams.get('action') === 'create';
-
-
       const roomData = await fetchRoomDetails(roomCode, currentNickname, isCreationAttempt);
       if (roomData) {
         setRoom(roomData);
@@ -117,7 +112,7 @@ export default function LobbyPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [roomCode, currentNickname, router, toast, searchParams]);
+  }, [roomCode, currentNickname, router, toast, isCreationAttempt]);
 
   useEffect(() => {
     setCurrentNickname(nickname); 
@@ -127,18 +122,28 @@ export default function LobbyPage() {
     loadRoom();
     
     const intervalId = setInterval(() => {
-        const updatedRooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
-        if(updatedRooms[roomCode]) {
+        let updatedRoomsStorage = {};
+        try {
+          const storedRooms = localStorage.getItem('scribbleRooms');
+          if (storedRooms) updatedRoomsStorage = JSON.parse(storedRooms);
+        } catch(e) {
+          console.error("Failed to parse scribbleRooms from localStorage in polling interval:", e);
+          // Potentially stop polling or alert user if localStorage is corrupted
+          return;
+        }
+        const currentRooms = updatedRoomsStorage as Record<string, Room>;
+
+        if(currentRooms[roomCode]) {
             setRoom(prevRoom => {
-              // Only update if there are actual changes to avoid unnecessary re-renders
-              if (JSON.stringify(prevRoom) !== JSON.stringify(updatedRooms[roomCode])) {
-                return updatedRooms[roomCode];
+              if (JSON.stringify(prevRoom) !== JSON.stringify(currentRooms[roomCode])) {
+                return currentRooms[roomCode];
               }
               return prevRoom;
             });
-        } else if (room) { // Room existed but now is gone from storage
+        } else if (room) { 
             toast({ title: "Room Closed", description: "The room seems to have been closed or no longer exists.", variant: "destructive" });
             router.push('/');
+            clearInterval(intervalId); // Stop polling if room is gone
         }
     }, 3000); 
 
@@ -149,10 +154,22 @@ export default function LobbyPage() {
 
   const handleStartGame = () => {
     if (!room || !isHost) return;
-    const updatedRoom = { ...room, isGameActive: true, currentWord: "APPLE", currentDrawerId: room.players[0].id, maxRounds: maxRounds }; // TODO: Pick random first word & drawer
-    let mockRooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
-    mockRooms[roomCode] = updatedRoom;
-    localStorage.setItem('scribbleRooms', JSON.stringify(mockRooms));
+    const updatedRoom = { ...room, isGameActive: true, currentWord: "APPLE", currentDrawerId: room.players[0].id, maxRounds: maxRounds }; 
+    
+    let mockRoomsStorage = {};
+    try {
+      const storedRooms = localStorage.getItem('scribbleRooms');
+      if (storedRooms) mockRoomsStorage = JSON.parse(storedRooms);
+    } catch (e) {
+      console.error("Failed to parse scribbleRooms from localStorage in handleStartGame:", e);
+    }
+    const currentRooms = mockRoomsStorage as Record<string, Room>;
+    currentRooms[roomCode] = updatedRoom;
+    try {
+      localStorage.setItem('scribbleRooms', JSON.stringify(currentRooms));
+    } catch (e) {
+      console.error("Failed to set scribbleRooms in localStorage in handleStartGame:", e);
+    }
     
     setRoom(updatedRoom); 
     toast({ title: 'Game Starting!', description: `The game in room ${roomCode} is about to begin.` });
@@ -169,7 +186,7 @@ export default function LobbyPage() {
       navigator.share({
         title: 'Join my Scribble Stadium game!',
         text: `Join my game in Scribble Stadium with room code: ${roomCode}`,
-        url: window.location.href.split('?')[0], // Share URL without query params for joining
+        url: window.location.href.split('?')[0], 
       })
       .then(() => toast({ title: 'Shared!', description: 'Invitation sent.'}))
       .catch((error) => console.log('Error sharing', error));
@@ -182,9 +199,21 @@ export default function LobbyPage() {
   const handleSettingsUpdate = () => {
     if (!room || !isHost) return;
     const updatedRoom = { ...room, maxRounds };
-    let mockRooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
-    mockRooms[roomCode] = updatedRoom;
-    localStorage.setItem('scribbleRooms', JSON.stringify(mockRooms));
+    
+    let mockRoomsStorage = {};
+    try {
+      const storedRooms = localStorage.getItem('scribbleRooms');
+      if (storedRooms) mockRoomsStorage = JSON.parse(storedRooms);
+    } catch (e) {
+      console.error("Failed to parse scribbleRooms from localStorage in handleSettingsUpdate:", e);
+    }
+    const currentRooms = mockRoomsStorage as Record<string, Room>;
+    currentRooms[roomCode] = updatedRoom;
+    try {
+      localStorage.setItem('scribbleRooms', JSON.stringify(currentRooms));
+    } catch (e) {
+      console.error("Failed to set scribbleRooms in localStorage in handleSettingsUpdate:", e);
+    }
     setRoom(updatedRoom);
     toast({ title: 'Settings Updated', description: `Max rounds set to ${maxRounds}.`});
   };
@@ -195,8 +224,6 @@ export default function LobbyPage() {
   }
 
   if (!room) {
-    // This state should ideally be brief as loadRoom redirects if room is null after load.
-    // However, it can be shown if loadRoom is still in progress or somehow failed to redirect.
     return (
         <div className="flex flex-col items-center justify-center h-full text-center">
             <AlertTriangle className="w-16 h-16 text-destructive mx-auto mb-4" />
@@ -281,7 +308,6 @@ export default function LobbyPage() {
                     <p className="text-muted-foreground font-semibold">Waiting for the host ({room.hostId || 'Host'}) to start the game.</p>
                 </div>
             )}
-            {/* Removed WordSuggestion component */}
              <div className="h-10"></div> {/* Placeholder to maintain layout if needed or remove */}
           </div>
         </CardContent>
