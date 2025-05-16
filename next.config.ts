@@ -17,7 +17,14 @@ const nextConfig: NextConfig = {
     // Suppress warnings for specific modules/messages
     config.ignoreWarnings = [
       ...(config.ignoreWarnings || []),
-      // Add any other warnings you want to ignore here if necessary
+      {
+        module: /@opentelemetry\/sdk-node/, // Specific module causing the warning
+        message: /Can't resolve '@opentelemetry\/exporter-jaeger'/, // Specific message to ignore
+      },
+      {
+        module: /handlebars/, // Specific module causing the warning
+        message: /require\.extensions is not supported by webpack/, // Specific message to ignore
+      },
     ];
 
     // fsevents is a macOS-specific optional dependency of chokidar.
