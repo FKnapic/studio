@@ -51,7 +51,10 @@ const suggestWordFlow = ai.defineFlow(
     if (!output || typeof output.word !== 'string' || output.word.trim() === '') {
       console.error('AI response missing expected "word" or word is empty. Full response:', JSON.stringify(response, null, 2));
       
-      const finishReason = response.candidates?.[0]?.finishReason;
+      // TypeScript reports that 'candidates' does not exist on 'response' type here.
+      // Using 'as any' as a workaround to access it, assuming it might be present at runtime
+      // and is necessary for more detailed error reporting.
+      const finishReason = (response as any).candidates?.[0]?.finishReason;
       if (finishReason && finishReason !== 'STOP') {
          throw new Error(`AI generation failed. Reason: ${finishReason}. This could be due to safety filters, API key issues, or query limits. Try a different topic or check your API key/quota.`);
       }
