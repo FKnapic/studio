@@ -6,7 +6,6 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import PlayerList from '@/components/PlayerList';
-import WordSuggestion from '@/components/WordSuggestion';
 import type { Player, Room } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { Copy, Play, Share2, Users, ChevronLeft, Settings, AlertTriangle } from 'lucide-react';
@@ -100,7 +99,8 @@ export default function LobbyPage() {
       // Simplified: the 'isCreating' flag in fetchRoomDetails will handle this.
       // If localStorage has no room `roomCode` yet, it's effectively a creation by the first player.
       const rooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
-      const isCreationAttempt = !rooms[roomCode];
+      const isCreationAttempt = !rooms[roomCode] && searchParams.get('action') === 'create';
+
 
       const roomData = await fetchRoomDetails(roomCode, currentNickname, isCreationAttempt);
       if (roomData) {
@@ -117,7 +117,7 @@ export default function LobbyPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [roomCode, currentNickname, router, toast]);
+  }, [roomCode, currentNickname, router, toast, searchParams]);
 
   useEffect(() => {
     setCurrentNickname(nickname); 
@@ -169,18 +169,14 @@ export default function LobbyPage() {
       navigator.share({
         title: 'Join my Scribble Stadium game!',
         text: `Join my game in Scribble Stadium with room code: ${roomCode}`,
-        url: window.location.href,
+        url: window.location.href.split('?')[0], // Share URL without query params for joining
       })
       .then(() => toast({ title: 'Shared!', description: 'Invitation sent.'}))
       .catch((error) => console.log('Error sharing', error));
     } else {
-      handleCopyRoomCode(); 
-      toast({ title: 'Link Copied', description: 'Share this link with your friends: ' + window.location.href });
+      navigator.clipboard.writeText(`${window.location.href.split('?')[0]}?nickname=<YourNickname>`);
+      toast({ title: 'Link Copied', description: 'Share this link with your friends: ' + window.location.href.split('?')[0] + ". They'll need to add their nickname." });
     }
-  };
-
-  const handleWordSuggested = (word: string) => {
-    console.log("Word suggested in lobby:", word);
   };
   
   const handleSettingsUpdate = () => {
@@ -274,7 +270,7 @@ export default function LobbyPage() {
           <div className="md:col-span-2">
             <PlayerList players={room.players || []} hostId={room.hostId} />
           </div>
-          <div className="space-y-4">
+          <div className="space-y-4 flex flex-col justify-between">
             {isHost && (
               <Button onClick={handleStartGame} className="w-full text-lg py-6 bg-accent hover:bg-accent/90 text-accent-foreground" size="lg" disabled={room.players.length < 1 /* Consider min 2 players to start a game */}>
                 <Play className="mr-2 h-6 w-6" /> Start Game
@@ -285,7 +281,8 @@ export default function LobbyPage() {
                     <p className="text-muted-foreground font-semibold">Waiting for the host ({room.hostId || 'Host'}) to start the game.</p>
                 </div>
             )}
-            <WordSuggestion onWordSuggested={handleWordSuggested} />
+            {/* Removed WordSuggestion component */}
+             <div className="h-10"></div> {/* Placeholder to maintain layout if needed or remove */}
           </div>
         </CardContent>
         <CardFooter className="text-sm text-muted-foreground">

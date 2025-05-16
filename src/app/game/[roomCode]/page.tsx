@@ -5,12 +5,11 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import DrawingCanvas from '@/components/DrawingCanvas';
 import ChatBox from '@/components/ChatBox';
 import PlayerList from '@/components/PlayerList';
-import WordSuggestion from '@/components/WordSuggestion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { Player, Room, Message, DrawingData } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { ChevronLeft, AlertTriangle, Clock, Lightbulb } from 'lucide-react';
+import { ChevronLeft, AlertTriangle, Clock } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -67,7 +66,6 @@ export default function GamePage() {
 
   const [room, setRoom] = useState<Room | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [showWordSuggestion, setShowWordSuggestion] = useState(false);
 
   const currentPlayer = room?.players.find(p => p.nickname === currentNickname);
   const isDrawer = currentPlayer?.id === room?.currentDrawerId;
@@ -196,18 +194,6 @@ export default function GamePage() {
     // console.log('Drawing data:', data);
   };
   
-  const handleWordSuggested = (word: string) => {
-    if (isDrawer && room) {
-        const updatedRoom = { ...room, currentWord: word };
-        let mockRooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
-        mockRooms[roomCode] = updatedRoom;
-        localStorage.setItem('scribbleRooms', JSON.stringify(mockRooms));
-        setRoom(updatedRoom);
-        toast({ title: 'Word Updated!', description: `Your new word to draw is: ${word}` });
-        setShowWordSuggestion(false);
-    }
-  };
-
 
   if (isLoading) {
     return <div className="flex justify-center items-center h-screen"><Clock className="w-12 h-12 animate-spin text-primary" /> <span className="ml-4 text-2xl">Loading Game...</span></div>;
@@ -229,22 +215,9 @@ export default function GamePage() {
 
   return (
     <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-120px)] max-h-[800px]">
-      {/* Left Column: Scoreboard & Word Suggestion (for drawer) */}
+      {/* Left Column: Scoreboard */}
       <div className="lg:w-1/4 space-y-4 flex flex-col">
         <PlayerList players={room.players} currentDrawerId={room.currentDrawerId} hostId={room.hostId} />
-        {isDrawer && (
-          <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center"><Lightbulb className="w-5 h-5 mr-2 text-yellow-400"/> Word Tools</CardTitle>
-            </CardHeader>
-            <CardContent>
-                 <Button onClick={() => setShowWordSuggestion(!showWordSuggestion)} variant="outline" className="w-full">
-                    {showWordSuggestion ? 'Hide' : 'Get AI Word Suggestion'}
-                </Button>
-                {showWordSuggestion && <WordSuggestion onWordSuggested={handleWordSuggested} />}
-            </CardContent>
-          </Card>
-        )}
       </div>
 
       {/* Middle Column: Drawing Canvas & Timer/Word */}

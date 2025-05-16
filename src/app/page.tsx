@@ -35,7 +35,8 @@ export default function HomePage() {
       return;
     }
     const newRoomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
-    router.push(`/lobby/${newRoomCode}?nickname=${encodeURIComponent(nickname.trim())}`);
+    // Add action=create to differentiate join from create for lobby page
+    router.push(`/lobby/${newRoomCode}?nickname=${encodeURIComponent(nickname.trim())}&action=create`);
   };
 
   const handleJoinRoom = () => {
@@ -46,6 +47,12 @@ export default function HomePage() {
     if (!roomCode.trim()) {
       toast({ title: 'Room code required', description: 'Please enter a room code.', variant: 'destructive' });
       return;
+    }
+    // Check if room exists before trying to join
+    const rooms = JSON.parse(localStorage.getItem('scribbleRooms') || '{}');
+    if (!rooms[roomCode.trim().toUpperCase()]) {
+        toast({ title: 'Room Not Found', description: `Room "${roomCode.trim().toUpperCase()}" does not exist.`, variant: 'destructive' });
+        return;
     }
     router.push(`/lobby/${roomCode.trim().toUpperCase()}?nickname=${encodeURIComponent(nickname.trim())}`);
   };
