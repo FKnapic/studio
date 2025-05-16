@@ -26,7 +26,7 @@ const fetchRoomDetails = async (roomCode: string, nickname: string, isCreating: 
   console.log(`Fetching room ${roomCode} for ${nickname}. Is creating: ${isCreating}`);
   await new Promise(resolve => setTimeout(resolve, 500));
 
-  let mockRoomsStorage = {};
+  let mockRoomsStorage: Record<string, Room> = {};
   try {
     const storedRooms = localStorage.getItem('scribbleRooms');
     if (storedRooms) {
@@ -36,17 +36,16 @@ const fetchRoomDetails = async (roomCode: string, nickname: string, isCreating: 
     console.error("Failed to parse scribbleRooms from localStorage in fetchRoomDetails:", e);
     // mockRoomsStorage remains {}
   }
-  const currentRooms = mockRoomsStorage as Record<string, Room>;
   
-  if (currentRooms[roomCode]) { // Room exists
-    const room = currentRooms[roomCode];
+  if (mockRoomsStorage[roomCode]) { // Room exists
+    const room = mockRoomsStorage[roomCode];
     const playerExists = room.players.find((p: Player) => p.nickname === nickname);
     if (!playerExists) {
       room.players.push({ id: Math.random().toString(36).substring(7), nickname, score: 0 });
     }
-     currentRooms[roomCode] = room;
+     mockRoomsStorage[roomCode] = room;
      try {
-       localStorage.setItem('scribbleRooms', JSON.stringify(currentRooms));
+       localStorage.setItem('scribbleRooms', JSON.stringify(mockRoomsStorage));
      } catch (e) {
        console.error("Failed to set scribbleRooms in localStorage in fetchRoomDetails (existing room):", e);
      }
@@ -60,9 +59,9 @@ const fetchRoomDetails = async (roomCode: string, nickname: string, isCreating: 
       messages: [],
       maxRounds: 3,
     };
-    currentRooms[roomCode] = newRoom;
+    mockRoomsStorage[roomCode] = newRoom;
     try {
-      localStorage.setItem('scribbleRooms', JSON.stringify(currentRooms));
+      localStorage.setItem('scribbleRooms', JSON.stringify(mockRoomsStorage));
     } catch (e) {
       console.error("Failed to set scribbleRooms in localStorage in fetchRoomDetails (creating room):", e);
     }
@@ -106,8 +105,8 @@ export default function LobbyPage() {
         router.push('/');
       }
     } catch (error) {
+      console.error('Error loading room details:', error);
       toast({ title: 'Error', description: 'Failed to load room details.', variant: 'destructive' });
-      console.error(error);
       router.push('/');
     } finally {
       setIsLoading(false);
@@ -122,51 +121,56 @@ export default function LobbyPage() {
     loadRoom();
     
     const intervalId = setInterval(() => {
-        let updatedRoomsStorage = {};
+        let updatedRoomsStorage: Record<string, Room> = {};
         try {
           const storedRooms = localStorage.getItem('scribbleRooms');
           if (storedRooms) updatedRoomsStorage = JSON.parse(storedRooms);
         } catch(e) {
           console.error("Failed to parse scribbleRooms from localStorage in polling interval:", e);
-          // Potentially stop polling or alert user if localStorage is corrupted
           return;
         }
-        const currentRooms = updatedRoomsStorage as Record<string, Room>;
 
-        if(currentRooms[roomCode]) {
+        if(updatedRoomsStorage[roomCode]) {
             setRoom(prevRoom => {
-              if (JSON.stringify(prevRoom) !== JSON.stringify(currentRooms[roomCode])) {
-                return currentRooms[roomCode];
+              if (JSON.stringify(prevRoom) !== JSON.stringify(updatedRoomsStorage[roomCode])) {
+                return updatedRoomsStorage[roomCode];
               }
               return prevRoom;
             });
         } else if (room) { 
             toast({ title: "Room Closed", description: "The room seems to have been closed or no longer exists.", variant: "destructive" });
             router.push('/');
-            clearInterval(intervalId); // Stop polling if room is gone
+            clearInterval(intervalId); 
         }
     }, 3000); 
 
     return () => clearInterval(intervalId);
 
-  }, [loadRoom, roomCode, router, toast, room]);
+  }, [loadRoom, roomCode, router, toast, room]); // room dependency is important here
+
+  // Effect to navigate non-host players when game starts
+  useEffect(() => {
+    if (room?.isGameActive && !isHost && !isLoading) {
+      toast({ title: 'Game Starting!', description: 'Joining the game...' });
+      router.push(`/game/${roomCode}?nickname=${encodeURIComponent(currentNickname)}`);
+    }
+  }, [room?.isGameActive, isHost, isLoading, roomCode, currentNickname, router, toast]);
 
 
   const handleStartGame = () => {
     if (!room || !isHost) return;
     const updatedRoom = { ...room, isGameActive: true, currentWord: "APPLE", currentDrawerId: room.players[0].id, maxRounds: maxRounds }; 
     
-    let mockRoomsStorage = {};
+    let mockRoomsStorage: Record<string, Room> = {};
     try {
       const storedRooms = localStorage.getItem('scribbleRooms');
       if (storedRooms) mockRoomsStorage = JSON.parse(storedRooms);
     } catch (e) {
       console.error("Failed to parse scribbleRooms from localStorage in handleStartGame:", e);
     }
-    const currentRooms = mockRoomsStorage as Record<string, Room>;
-    currentRooms[roomCode] = updatedRoom;
+    mockRoomsStorage[roomCode] = updatedRoom;
     try {
-      localStorage.setItem('scribbleRooms', JSON.stringify(currentRooms));
+      localStorage.setItem('scribbleRooms', JSON.stringify(mockRoomsStorage));
     } catch (e) {
       console.error("Failed to set scribbleRooms in localStorage in handleStartGame:", e);
     }
@@ -200,17 +204,16 @@ export default function LobbyPage() {
     if (!room || !isHost) return;
     const updatedRoom = { ...room, maxRounds };
     
-    let mockRoomsStorage = {};
+    let mockRoomsStorage: Record<string, Room> = {};
     try {
       const storedRooms = localStorage.getItem('scribbleRooms');
       if (storedRooms) mockRoomsStorage = JSON.parse(storedRooms);
     } catch (e) {
       console.error("Failed to parse scribbleRooms from localStorage in handleSettingsUpdate:", e);
     }
-    const currentRooms = mockRoomsStorage as Record<string, Room>;
-    currentRooms[roomCode] = updatedRoom;
+    mockRoomsStorage[roomCode] = updatedRoom;
     try {
-      localStorage.setItem('scribbleRooms', JSON.stringify(currentRooms));
+      localStorage.setItem('scribbleRooms', JSON.stringify(mockRoomsStorage));
     } catch (e) {
       console.error("Failed to set scribbleRooms in localStorage in handleSettingsUpdate:", e);
     }

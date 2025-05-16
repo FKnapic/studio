@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // Temporarily remove custom webpack configuration
+  // Temporarily remove custom webpack configuration to diagnose Internal Server Error
   // webpack: (config, { isServer, nextRuntime }) => {
   //   // Suppress warnings for specific modules/messages
   //   config.ignoreWarnings = [
@@ -30,12 +30,13 @@ const nextConfig: NextConfig = {
 
   //   // fsevents is a macOS-specific optional dependency of chokidar.
   //   // It's safe to ignore on other systems.
-  //   if (!isServer) { // Only apply IgnorePlugin for client-side builds if needed, or remove if fsevents is not an issue
-  //       config.plugins.push(
-  //           new webpack.IgnorePlugin({
-  //           resourceRegExp: /^fsevents$/,
-  //           })
-  //       );
+  //   if (!isServer && nextRuntime === 'nodejs') { // Ensure nextRuntime check if using newer Next.js versions
+  //       // Check if webpack is available if we were to use it
+  //       // config.plugins.push(
+  //       //     new webpack.IgnorePlugin({
+  //       //     resourceRegExp: /^fsevents$/,
+  //       //     })
+  //       // );
   //   }
     
   //   return config;
