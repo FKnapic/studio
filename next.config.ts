@@ -1,5 +1,5 @@
 import type {NextConfig} from 'next';
-import webpack from 'webpack'; // Import webpack
+// import webpack from 'webpack'; // Temporarily remove webpack import
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -13,30 +13,33 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  webpack: (config, { isServer, nextRuntime }) => {
-    // Suppress warnings for specific modules/messages
-    config.ignoreWarnings = [
-      ...(config.ignoreWarnings || []),
-      {
-        module: /@opentelemetry\/sdk-node/, // Specific module causing the warning
-        message: /Can't resolve '@opentelemetry\/exporter-jaeger'/, // Specific message to ignore
-      },
-      {
-        module: /handlebars/, // Specific module causing the warning
-        message: /require\.extensions is not supported by webpack/, // Specific message to ignore
-      },
-    ];
+  // Temporarily remove custom webpack configuration
+  // webpack: (config, { isServer, nextRuntime }) => {
+  //   // Suppress warnings for specific modules/messages
+  //   config.ignoreWarnings = [
+  //     ...(config.ignoreWarnings || []),
+  //     {
+  //       module: /@opentelemetry\/sdk-node/,
+  //       message: /Can't resolve '@opentelemetry\/exporter-jaeger'/,
+  //     },
+  //     {
+  //       module: /handlebars/,
+  //       message: /require\.extensions is not supported by webpack/,
+  //     },
+  //   ];
 
-    // fsevents is a macOS-specific optional dependency of chokidar.
-    // It's safe to ignore on other systems.
-    config.plugins.push(
-      new webpack.IgnorePlugin({
-        resourceRegExp: /^fsevents$/,
-      })
-    );
-
-    return config;
-  },
+  //   // fsevents is a macOS-specific optional dependency of chokidar.
+  //   // It's safe to ignore on other systems.
+  //   if (!isServer) { // Only apply IgnorePlugin for client-side builds if needed, or remove if fsevents is not an issue
+  //       config.plugins.push(
+  //           new webpack.IgnorePlugin({
+  //           resourceRegExp: /^fsevents$/,
+  //           })
+  //       );
+  //   }
+    
+  //   return config;
+  // },
 };
 
 export default nextConfig;

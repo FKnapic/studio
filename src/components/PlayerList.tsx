@@ -1,3 +1,4 @@
+
 import type { Player } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { User, Crown, Edit3 } from 'lucide-react';
@@ -44,8 +45,16 @@ export default function PlayerList({ players, currentDrawerId, hostId }: PlayerL
                 <div className="flex items-center gap-3">
                   <User className="w-5 h-5 text-muted-foreground" />
                   <span className="font-medium text-lg">{player.nickname}</span>
-                  {player.id === hostId && <Crown className="w-4 h-4 text-yellow-500" title="Host" />}
-                  {player.id === currentDrawerId && <Edit3 className="w-4 h-4 text-primary" title="Drawing" />}
+                  {player.id === hostId && (
+                    <span title="Host">
+                      <Crown className="w-4 h-4 text-yellow-500" />
+                    </span>
+                  )}
+                  {player.id === currentDrawerId && (
+                    <span title="Drawing">
+                      <Edit3 className="w-4 h-4 text-primary" />
+                    </span>
+                  )}
                 </div>
                 <span className="font-bold text-xl text-primary">{player.score}</span>
               </li>
