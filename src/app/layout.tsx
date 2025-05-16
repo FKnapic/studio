@@ -1,14 +1,10 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google'; // Changed from GeistSans
+// Removed Inter font import
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import Header from '@/components/Header';
 
-// Initialize Inter font
-const inter = Inter({
-  variable: '--font-inter', // Updated variable name
-  subsets: ['latin'],
-});
+// Removed Inter font initialization
 
 export const metadata: Metadata = {
   title: 'Scribble Stadium',
@@ -22,7 +18,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} antialiased flex flex-col min-h-screen`}> {/* Updated font variable */}
+      {/* Removed font variable from body className */}
+      <body className="antialiased flex flex-col min-h-screen">
         <Header />
         <main className="flex-grow container mx-auto px-4 py-8">
           {children}
