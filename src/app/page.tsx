@@ -36,6 +36,7 @@ export default function HomePage() {
       return;
     }
     const newRoomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+    console.log(`[HomePage] Creating room with code: ${newRoomCode} for nickname: ${nickname.trim()}`);
     router.push(`/lobby/${newRoomCode}?nickname=${encodeURIComponent(nickname.trim())}&action=create`);
   };
 
@@ -49,23 +50,33 @@ export default function HomePage() {
       return;
     }
     
+    const targetRoomCode = roomCode.trim().toUpperCase();
+    console.log(`[HomePage] Attempting to join room. Nickname: "${nickname.trim()}", Room Code Input: "${roomCode}", Target Code: "${targetRoomCode}"`);
+
     let currentRooms: Record<string, Room> = {};
+    let rawStoredRooms = null;
     try {
-        const storedRooms = localStorage.getItem('scribbleRooms');
-        if (storedRooms) {
-            currentRooms = JSON.parse(storedRooms);
+        rawStoredRooms = localStorage.getItem('scribbleRooms');
+        console.log("[HomePage] Raw 'scribbleRooms' from localStorage:", rawStoredRooms);
+        if (rawStoredRooms) {
+            currentRooms = JSON.parse(rawStoredRooms);
+            console.log("[HomePage] Parsed 'scribbleRooms':", JSON.parse(JSON.stringify(currentRooms))); // Deep copy for logging
+        } else {
+            console.log("[HomePage] 'scribbleRooms' not found in localStorage or is null.");
         }
     } catch (e) {
-        console.error("Failed to parse scribbleRooms from localStorage in handleJoinRoom:", e);
+        console.error("[HomePage] Failed to parse 'scribbleRooms' from localStorage:", e);
         toast({ title: 'Error', description: 'Could not read room data. Please try again.', variant: 'destructive' });
         return;
     }
 
-    if (!currentRooms[roomCode.trim().toUpperCase()]) {
-        toast({ title: 'Room Not Found', description: `Room "${roomCode.trim().toUpperCase()}" does not exist.`, variant: 'destructive' });
+    if (!currentRooms[targetRoomCode]) {
+        console.warn(`[HomePage] Room "${targetRoomCode}" not found in parsed rooms. Available room codes:`, Object.keys(currentRooms));
+        toast({ title: 'Room Not Found', description: `Room "${targetRoomCode}" does not exist.`, variant: 'destructive' });
         return;
     }
-    router.push(`/lobby/${roomCode.trim().toUpperCase()}?nickname=${encodeURIComponent(nickname.trim())}`);
+    console.log(`[HomePage] Room "${targetRoomCode}" found. Navigating to lobby.`);
+    router.push(`/lobby/${targetRoomCode}?nickname=${encodeURIComponent(nickname.trim())}`);
   };
 
   return (
