@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -31,7 +32,7 @@ const prompt = ai.definePrompt({
   output: {schema: SuggestWordOutputSchema},
   prompt: `You are a creative word suggestion AI.
 
-You will suggest a single word to draw based on the topic, or a random object if no topic is provided.
+You will suggest a single, common, and drawable word based on the topic, or a random common, drawable object if no topic is provided. The word should be suitable for a drawing game. Avoid overly complex or abstract words.
 
 Topic: {{{topic}}}
 `,
@@ -44,7 +45,19 @@ const suggestWordFlow = ai.defineFlow(
     outputSchema: SuggestWordOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    const response = await prompt(input);
+    const output = response.output;
+
+    if (!output || typeof output.word !== 'string' || output.word.trim() === '') {
+      console.error('AI response missing expected "word" or word is empty. Full response:', JSON.stringify(response, null, 2));
+      
+      const finishReason = response.candidates?.[0]?.finishReason;
+      if (finishReason && finishReason !== 'STOP') {
+         throw new Error(`AI generation failed. Reason: ${finishReason}. This could be due to safety filters, API key issues, or query limits. Try a different topic or check your API key/quota.`);
+      }
+      throw new Error('AI could not suggest a valid word. The model may have returned an empty or malformed response. Please try again or use a different topic.');
+    }
+    return output;
   }
 );
+
