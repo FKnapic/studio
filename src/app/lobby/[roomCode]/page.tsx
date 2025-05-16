@@ -24,7 +24,7 @@ import { Input } from '@/components/ui/input';
 // Mock a function to get room details, in a real app this would be an API/socket call
 const fetchRoomDetails = async (roomCode: string, nickname: string, isCreating: boolean): Promise<Room | null> => {
   console.log(`Fetching room ${roomCode} for ${nickname}. Is creating: ${isCreating}`);
-  await new Promise(resolve => setTimeout(resolve, 500));
+  // Removed artificial delay: await new Promise(resolve => setTimeout(resolve, 500));
 
   let mockRoomsStorage: Record<string, Room> = {};
   try {
@@ -37,11 +37,11 @@ const fetchRoomDetails = async (roomCode: string, nickname: string, isCreating: 
     // mockRoomsStorage remains {}
   }
   
-  if (mockRoomsStorage[roomCode]) { // Room exists
+  if (mockRoomsStorage[roomCode] && !isCreating) { // Room exists and we are not trying to create it again (e.g. joining)
     const room = mockRoomsStorage[roomCode];
     const playerExists = room.players.find((p: Player) => p.nickname === nickname);
     if (!playerExists) {
-      room.players.push({ id: Math.random().toString(36).substring(7), nickname, score: 0 });
+      room.players.push({ id: Math.random().toString(36).substring(7), nickname, score: 0, isHost: false });
     }
      mockRoomsStorage[roomCode] = room;
      try {
@@ -50,11 +50,13 @@ const fetchRoomDetails = async (roomCode: string, nickname: string, isCreating: 
        console.error("Failed to set scribbleRooms in localStorage in fetchRoomDetails (existing room):", e);
      }
      return room;
-  } else if (isCreating) { // Room does not exist, but we are in "create" mode
+  } else if (isCreating) { // Room does not exist OR we are explicitly creating (overwriting if joining with create flag)
+     const newPlayerId = Math.random().toString(36).substring(7);
+     const newHostPlayer: Player = { id: newPlayerId, nickname, score: 0, isHost: true };
      const newRoom: Room = {
       roomCode,
-      players: [{ id: Math.random().toString(36).substring(7), nickname, score: 0, isHost: true }],
-      hostId: nickname, 
+      players: [newHostPlayer],
+      hostId: newPlayerId, // Set hostId to the new player's unique ID
       isGameActive: false,
       messages: [],
       maxRounds: 3,
@@ -78,15 +80,17 @@ export default function LobbyPage() {
   const { toast } = useToast();
 
   const roomCode = params.roomCode as string;
-  const nickname = searchParams.get('nickname') || 'Player';
+  const nicknameFromParams = searchParams.get('nickname') || 'Player'; // Use a different variable name
   const isCreationAttempt = searchParams.get('action') === 'create';
 
   const [room, setRoom] = useState<Room | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentNickname, setCurrentNickname] = useState<string>(nickname);
+  const [currentNickname, setCurrentNickname] = useState<string>(nicknameFromParams);
   const [maxRounds, setMaxRounds] = useState(3);
 
-  const isHost = room?.hostId === currentNickname;
+  const currentPlayerInLobby = room?.players.find(p => p.nickname === currentNickname);
+  const isHost = !!currentPlayerInLobby && currentPlayerInLobby.id === room?.hostId && currentPlayerInLobby.isHost;
+
 
   const loadRoom = useCallback(async () => {
     setIsLoading(true);
@@ -114,8 +118,9 @@ export default function LobbyPage() {
   }, [roomCode, currentNickname, router, toast, isCreationAttempt]);
 
   useEffect(() => {
-    setCurrentNickname(nickname); 
-  }, [nickname]);
+    // Initialize currentNickname from URL parameters
+    setCurrentNickname(nicknameFromParams); 
+  }, [nicknameFromParams]);
 
   useEffect(() => {
     loadRoom();
@@ -127,30 +132,35 @@ export default function LobbyPage() {
           if (storedRooms) updatedRoomsStorage = JSON.parse(storedRooms);
         } catch(e) {
           console.error("Failed to parse scribbleRooms from localStorage in polling interval:", e);
-          return;
+          return; // Skip update if parsing fails
         }
 
-        if(updatedRoomsStorage[roomCode]) {
-            setRoom(prevRoom => {
-              if (JSON.stringify(prevRoom) !== JSON.stringify(updatedRoomsStorage[roomCode])) {
-                return updatedRoomsStorage[roomCode];
-              }
-              return prevRoom;
-            });
-        } else if (room) { 
-            toast({ title: "Room Closed", description: "The room seems to have been closed or no longer exists.", variant: "destructive" });
-            router.push('/');
-            clearInterval(intervalId); 
-        }
+        const currentRoomDataFromStorage = updatedRoomsStorage[roomCode];
+
+        setRoom(prevRoom => {
+            if (currentRoomDataFromStorage) {
+                if (JSON.stringify(prevRoom) !== JSON.stringify(currentRoomDataFromStorage)) {
+                    return currentRoomDataFromStorage;
+                }
+                return prevRoom;
+            } else { // Room no longer in storage
+                if (prevRoom) { // If room was previously set, means it disappeared
+                    toast({ title: "Room Closed", description: "The room seems to have been closed or no longer exists.", variant: "destructive" });
+                    router.push('/');
+                    clearInterval(intervalId); // Stop polling as we are navigating away
+                }
+                return null; // Set room to null if not found
+            }
+        });
     }, 3000); 
 
     return () => clearInterval(intervalId);
 
-  }, [loadRoom, roomCode, router, toast, room]); // room dependency is important here
+  }, [loadRoom, roomCode, router, toast]); // Removed 'room' from dependencies to avoid re-triggering poll on every room state change from poll itself. loadRoom handles initial load.
 
   // Effect to navigate non-host players when game starts
   useEffect(() => {
-    if (room?.isGameActive && !isHost && !isLoading) {
+    if (room?.isGameActive && !isHost && !isLoading) { // currentNickname is stable from useState
       toast({ title: 'Game Starting!', description: 'Joining the game...' });
       router.push(`/game/${roomCode}?nickname=${encodeURIComponent(currentNickname)}`);
     }
@@ -158,8 +168,18 @@ export default function LobbyPage() {
 
 
   const handleStartGame = () => {
-    if (!room || !isHost) return;
-    const updatedRoom = { ...room, isGameActive: true, currentWord: "APPLE", currentDrawerId: room.players[0].id, maxRounds: maxRounds }; 
+    if (!room || !isHost || !currentPlayerInLobby) return;
+    // Ensure currentDrawerId is valid if players exist
+    const drawerId = room.players.length > 0 ? room.players[0].id : undefined;
+    const updatedRoom: Room = { 
+        ...room, 
+        isGameActive: true, 
+        // currentWord: "APPLE", // Word should be set at the start of a round in game page
+        currentDrawerId: drawerId, 
+        maxRounds: maxRounds,
+        round: 0, // Initialize round
+        messages: [{id: Date.now().toString(), nickname:"System", text: "Game started by host!", timestamp: Date.now(), isSystemMessage: true }]
+    }; 
     
     let mockRoomsStorage: Record<string, Room> = {};
     try {
@@ -167,6 +187,7 @@ export default function LobbyPage() {
       if (storedRooms) mockRoomsStorage = JSON.parse(storedRooms);
     } catch (e) {
       console.error("Failed to parse scribbleRooms from localStorage in handleStartGame:", e);
+      // Continue with empty storage if parse fails, or handle error more strictly
     }
     mockRoomsStorage[roomCode] = updatedRoom;
     try {
@@ -181,8 +202,10 @@ export default function LobbyPage() {
   };
 
   const handleCopyRoomCode = () => {
-    navigator.clipboard.writeText(roomCode);
-    toast({ title: 'Copied!', description: 'Room code copied to clipboard.' });
+    if(roomCode){
+        navigator.clipboard.writeText(roomCode);
+        toast({ title: 'Copied!', description: 'Room code copied to clipboard.' });
+    }
   };
 
   const handleShare = () => {
@@ -195,8 +218,9 @@ export default function LobbyPage() {
       .then(() => toast({ title: 'Shared!', description: 'Invitation sent.'}))
       .catch((error) => console.log('Error sharing', error));
     } else {
-      navigator.clipboard.writeText(`${window.location.href.split('?')[0]}?nickname=<YourNickname>`);
-      toast({ title: 'Link Copied', description: 'Share this link with your friends: ' + window.location.href.split('?')[0] + ". They'll need to add their nickname." });
+      const joinUrl = window.location.href.split('?')[0];
+      navigator.clipboard.writeText(joinUrl); // Copy base lobby URL
+      toast({ title: 'Link Copied', description: `Share this link with your friends: ${joinUrl}. They'll need the room code: ${roomCode} and to enter their nickname.` });
     }
   };
   
@@ -250,7 +274,7 @@ export default function LobbyPage() {
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="text-4xl font-bold text-primary">Room: {roomCode}</CardTitle>
-              <CardDescription className="text-lg">Waiting for players... The host will start the game.</CardDescription>
+              <CardDescription className="text-lg">Waiting for players... The host ({room.players.find(p => p.id === room.hostId)?.nickname || 'Unknown'}) will start the game.</CardDescription>
             </div>
             <div className="flex gap-2">
               <Button variant="ghost" size="icon" onClick={handleCopyRoomCode} title="Copy Room Code">
@@ -288,7 +312,10 @@ export default function LobbyPage() {
                         </div>
                       </div>
                       <DialogFooter>
-                        <Button onClick={handleSettingsUpdate}>Save Changes</Button>
+                        <Button onClick={() => {
+                            handleSettingsUpdate();
+                            // Consider closing dialog here if Dialog had an onOpenChange prop
+                        }}>Save Changes</Button>
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
@@ -302,13 +329,13 @@ export default function LobbyPage() {
           </div>
           <div className="space-y-4 flex flex-col justify-between">
             {isHost && (
-              <Button onClick={handleStartGame} className="w-full text-lg py-6 bg-accent hover:bg-accent/90 text-accent-foreground" size="lg" disabled={room.players.length < 1 /* Consider min 2 players to start a game */}>
+              <Button onClick={handleStartGame} className="w-full text-lg py-6 bg-accent hover:bg-accent/90 text-accent-foreground" size="lg" disabled={room.players.length < 1 /* Consider min 2 players for a real game */}>
                 <Play className="mr-2 h-6 w-6" /> Start Game
               </Button>
             )}
             {!isHost && (
                 <div className="text-center p-4 bg-secondary rounded-md">
-                    <p className="text-muted-foreground font-semibold">Waiting for the host ({room.hostId || 'Host'}) to start the game.</p>
+                    <p className="text-muted-foreground font-semibold">Waiting for the host ({room.players.find(p => p.id === room.hostId)?.nickname || 'Host'}) to start the game.</p>
                 </div>
             )}
              <div className="h-10"></div> {/* Placeholder to maintain layout if needed or remove */}
@@ -322,3 +349,4 @@ export default function LobbyPage() {
   );
 }
 
+    
