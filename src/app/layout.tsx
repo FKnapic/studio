@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
-import { GeistSans } from 'next/font/google';
+import { Inter } from 'next/font/google'; // Changed from GeistSans
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import Header from '@/components/Header';
 
-const geistSans = GeistSans({
-  variable: '--font-geist-sans',
+// Initialize Inter font
+const inter = Inter({
+  variable: '--font-inter', // Updated variable name
   subsets: ['latin'],
 });
 
@@ -21,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} antialiased flex flex-col min-h-screen`}>
+      <body className={`${inter.variable} antialiased flex flex-col min-h-screen`}> {/* Updated font variable */}
         <Header />
         <main className="flex-grow container mx-auto px-4 py-8">
           {children}
