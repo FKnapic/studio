@@ -1,14 +1,4 @@
-
-import {genkit} from 'genkit';
-import {googleAI} from '@genkit-ai/googleai';
-
-// IMPORTANT: Ensure you have a GOOGLE_API_KEY (or GOOGLE_GEMINI_API_KEY)
-// environment variable set in your .env file or deployment environment.
-// Example .env file content:
-// GOOGLE_API_KEY=your_actual_api_key_here
-
-export const ai = genkit({
-  plugins: [googleAI()],
-  model: 'googleai/gemini-2.0-flash',
-});
-
+// This file was part of the AI word suggestion functionality which has been removed.
+// It is now empty to prevent build errors.
+// You should manually delete this file (src/ai/genkit.ts)
+// and potentially the entire src/ai directory if it's no longer needed.
